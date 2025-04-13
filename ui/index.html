@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>チャットアプリ</title>
+    <style>
+        /* 全体レイアウトと背景 */
+        body {
+            margin: 0;
+            font-family: "Segoe UI", sans-serif;
+            background: #f4f7fc;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+        .container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+        /* 左ペイン：設定エリア */
+        .left-panel {
+            width: 300px;
+            background: #ffffff;
+            border-right: 1px solid #e0e0e0;
+            padding: 20px;
+            box-sizing: border-box;
+            overflow-y: auto;
+        }
+        .left-panel h2 {
+            color: #001F3F;
+            margin-top: 0;
+            font-size: 18px;
+        }
+        .setting-group {
+            margin-bottom: 20px;
+        }
+        .setting-label {
+            display: block;
+            margin-bottom: 6px;
+            font-weight: bold;
+            color: #333;
+        }
+        /* トグルスイッチ（RAG利用）のスタイル */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 24px;
+        }
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .2s;
+            border-radius: 24px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 20px;
+            width: 20px;
+            left: 2px;
+            bottom: 2px;
+            background-color: #fff;
+            transition: .2s;
+            border-radius: 50%;
+        }
+        input:checked + .slider {
+            background-color: #001F3F;
+        }
+        input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+        /* 入力コントロールのスタイル */
+        input[type="number"], textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        textarea {
+            resize: none;
+            /* 初期高さ */
+            height: 40px;
+            min-height: 40px;
+            /* 最大高さ：画面50% */
+            max-height: 50vh;
+            overflow-y: auto;
+        }
+        /* 右ペイン：チャットエリア */
+        .right-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: #f4f7fc;
+            overflow: hidden;
+            position: relative;
+        }
+        #chat-history {
+            flex: 1;
+            padding: 20px;
+            /* 下部に読み込み表示分の余白を追加 */
+            padding-bottom: 80px;
+            overflow-y: auto;
+        }
+        #input-area {
+            background: #ffffff;
+            padding: 15px 20px;
+            border-top: 1px solid #e0e0e0;
+            display: flex;
+            align-items: flex-end;
+        }
+        #user-input {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 12px;
+            outline: none;
+            box-sizing: border-box;
+            overflow-y: auto;
+            /* 初期高さ */
+            height: 40px;
+        }
+        #user-input:focus {
+            border-color: #001F3F;
+        }
+        #input-area button {
+            margin-left: 15px;
+            padding: 10px 20px;
+            border: none;
+            background: #001F3F;
+            color: #fff;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        #input-area button:hover {
+            background: #001237;
+        }
+
+        #system-prompt {
+            min-height: 150px;
+        }
+        /* ユーザのチャットメッセージ（右寄せの吹き出し風） */
+        .user-message {
+            background: #cce0ff;
+            padding: 10px 15px;
+            margin: 10px 0;
+            border-radius: 12px;
+            max-width: 70%;
+            margin-left: auto; /* 右寄せ */
+            white-space: pre-wrap;
+        }
+        /* アシスタントのメッセージ（吹き出しなし） */
+        .bot-message {
+            background: transparent;
+            padding: 10px 0;
+            margin: 10px 0;
+            color: #333;
+            line-height: 1.4;
+        }
+        /* Markdown 用スタイル（アシスタント側メッセージ内） */
+        .bot-message h1,
+        .bot-message h2,
+        .bot-message h3,
+        .bot-message h4,
+        .bot-message h5,
+        .bot-message h6 {
+            margin: 0.5em 0;
+            color: #001F3F;
+        }
+        .bot-message ul,
+        .bot-message ol {
+            padding-left: 20px;
+        }
+        .bot-message pre {
+            background: #2d2d2d;
+            color: #f8f8f2;
+            padding: 12px;
+            border-radius: 8px;
+            font-family: monospace;
+            overflow-x: auto;
+        }
+        .bot-message pre code {
+            border-radius: 8px;
+            font-family: monospace;
+        }
+        .bot-message p > code, .bot-message ol code {
+            background: #2d2d2d;
+            border-radius: 8px;
+            color: #f8f8f2;
+            padding: 4px 8px;
+        }
+        /* 読み込みGIFのスタイル（右ペイン内での絶対配置） */
+        #loading-indicator {
+            position: absolute;
+            left: 20px;
+            bottom: 80px; /* 入力エリアの上に配置 */
+            z-index: 50;
+            display: none;
+        }
+    </style>
+    <!-- jQuery (CDN) -->
+    <script src="https://code.jquery.com/jquery-3.6.1.min.js"></script>
+    <!-- Marked.js (Markdown 変換用) -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- 左ペイン：設定 -->
+        <div class="left-panel">
+            <img src="chatbot.png" height="80px">
+            <h2>設定</h2>
+            <div class="setting-group">
+                <label class="setting-label">登録文書を参照して回答する</label>
+                <label class="switch">
+                    <input type="checkbox" id="rag-toggle">
+                    <span class="slider"></span>
+                </label>
+            </div>
+            <div class="setting-group">
+                <label class="setting-label" for="rag-segments">(オプション)参照した文書の使い方の指示</label>
+                <textarea id="retrieval-role" placeholder="これらの情報を参考にして回答してください">以下は参考情報です。これらをもとにユーザの質問に回答してください。</textarea>
+            </div>
+            <div class="setting-group">
+                <label class="setting-label" for="rag-segments">文書取得セグメント数</label>
+                <input type="number" id="rag-segments" min="1" max="50" value="5">
+            </div>
+            <div class="setting-group">
+                <label class="setting-label" for="system-prompt">(オプション)アシスタントの役割</label>
+                <textarea id="system-prompt" placeholder="あなたは親切なAIアシスタントです。ユーザの質問に的確に答えてください。">
+あなたは親切なAIアシスタントです。ユーザの質問に的確に答えてください。
+ただし、参考情報にない事柄を勝手に伝えてはなりません。
+参考情報だけでは確実でない場合、より具体的な内容を示すようにユーザに問いかけてください。
+自身の持つ知識のみで回答ができる場合は、あなたの個人的な見解である旨を必ず示してからユーザに伝えてください。
+                </textarea>
+            </div>
+        </div>
+        <!-- 右ペイン：チャットUI -->
+        <div class="right-panel">
+            <!-- 読み込みインジケータ（チャットエリア内） -->
+            <div id="loading-indicator">
+                <img src="dual_ring_by_loading_io.gif" alt="Loading..." width="40px">
+            </div>
+            <div id="chat-history">
+                <!-- ユーザとアシスタントのメッセージがここに追加 -->
+            </div>
+            <div id="input-area">
+                <form id="chat-form" style="display: flex; flex:1;">
+                    <textarea id="user-input" placeholder="メッセージを入力..." required></textarea>
+                    <button type="submit">送信</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        $(document).ready(function() {
+            // Marked.js の設定（改行を反映）
+            marked.setOptions({ breaks: true });
+            
+            // 自動リサイズのためのハンドラー設定
+            function autoResizeTextarea(el) {
+                el.style.height = 'auto';
+                var newHeight = Math.min(el.scrollHeight, window.innerHeight * 0.5);
+                el.style.height = newHeight + 'px';
+            }
+            
+            // ユーザ入力テキストエリアの自動リサイズイベント
+            $('#user-input').on('input', function() {
+                autoResizeTextarea(this);
+            });
+            
+            // グローバルな会話履歴配列
+            var conversationHistory = [];
+            
+            $("#chat-form").submit(function(e) {
+                e.preventDefault();
+                
+                var userInput = $("#user-input").val().trim();
+                if (userInput === "") return;
+
+                var systemPrompt = $("#system-prompt").val().trim();
+                var retrievalRole = $("#retrieval-role").val().trim();
+                
+                // ユーザメッセージ（右寄せの吹き出し風）を追加
+                var userMessageDiv = $("<div>")
+                    .addClass("user-message")
+                    .text(userInput);
+                $("#chat-history").append(userMessageDiv);
+                $("#chat-history").scrollTop($("#chat-history")[0].scrollHeight);
+                
+                // 会話履歴に追加
+                conversationHistory.push({
+                    role: "user",
+                    content: userInput
+                });
+                
+                // アシスタントメッセージ用コンテナを追加
+                var botMessageDiv = $("<div>").addClass("bot-message");
+                $("#chat-history").append(botMessageDiv);
+                $("#chat-history").scrollTop($("#chat-history")[0].scrollHeight);
+                
+                // 入力欄をクリアし、元の大きさにリセット
+                $("#user-input").val("").css("height", "40px");
+                
+                // ローディングGIF表示（ユーザ送信直後から生成完了まで）
+                $("#loading-indicator").show();
+                
+                // ストリーミング受信用の変数
+                var lastResponseLength = 0;
+                var buffer = "";
+                var assistantResponse = "";
+                
+                $.ajax({
+                    url: "/v1/chat/completions/streaming",
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    data: JSON.stringify({
+                        messages: conversationHistory,
+                        use_index: $("#rag-toggle").is(":checked"),
+                        retrieval_top_k: parseInt($("#rag-segments").val(), 10),
+                        system_prompt_override: systemPrompt,
+                        retrieval_role: retrievalRole
+                    }),
+                    processData: false,
+                    cache: false,
+                    xhr: function() {
+                        var xhr = new window.XMLHttpRequest();
+                        xhr.onprogress = function(e) {
+                            var responseText = xhr.responseText;
+                            var newText = responseText.substring(lastResponseLength);
+                            lastResponseLength = responseText.length;
+                            buffer += newText;
+                            var lines = buffer.split("\n");
+                            buffer = lines.pop();
+                            lines.forEach(function(line) {
+                                line = line.trim();
+                                if (line === "") return;
+                                if (line === "data: [DONE]") {
+                                    console.log("ストリームの終了");
+                                    // 生成完了時に読み込みインジケータを非表示
+                                    $("#loading-indicator").hide();
+                                    return;
+                                }
+                                if (line.indexOf("data:") === 0) {
+                                    var delta = line.replaceAll("data: ", "").replaceAll("\\n", "\n");
+                                    if (delta.indexOf("data:") === 0) {
+                                        delta = " ";
+                                    }
+                                    try {
+                                        if (delta) {
+                                            assistantResponse += delta;
+                                            var renderedHTML = marked.parse(assistantResponse);
+                                            botMessageDiv.html(renderedHTML);
+                                            $("#chat-history").scrollTop($("#chat-history")[0].scrollHeight);
+                                        }
+                                    } catch (err) {
+                                        console.error("JSON解析失敗：", err);
+                                    }
+                                }
+                            });
+                        };
+                        return xhr;
+                    },
+                    success: function(data) {
+                        conversationHistory.push({
+                            role: "assistant",
+                            content: botMessageDiv.text()
+                        });
+                        console.log("リクエスト完了");
+                        $("#loading-indicator").hide();
+                    },
+                    error: function(jqXHR, textStatus, errorThrown) {
+                        console.error("エラー: ", textStatus, errorThrown);
+                        $('#chat-history').append("<div class='bot-message'>エラー: " + textStatus + "</div>");
+                        $("#loading-indicator").hide();
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>
